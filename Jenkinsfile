@@ -1,4 +1,5 @@
 pipeline {
+
     agent { label 'built-in' }
 
     environment {
@@ -23,7 +24,9 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    docker run --rm -v $WORKSPACE:/work -w /work node:16 bash -lc '
+                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
                         npm install --save
                     '
                 '''
@@ -33,7 +36,9 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 sh '''
-                    docker run --rm -v $WORKSPACE:/work -w /work node:16 bash -lc '
+                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
                         npm install --save
                         npm test
                     '
@@ -45,7 +50,9 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
-                    docker run --rm -v $WORKSPACE:/work -w /work -e SNYK_TOKEN node:16 bash -lc '
+                    tar -C . -cf - . | docker run --rm -i -w /work -e SNYK_TOKEN node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
                         npm install --save
                         npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
                     '
@@ -53,6 +60,8 @@ pipeline {
             }
             post {
                 always {
+                    // Copy report from container back to Jenkins workspace to archive
+                    sh 'docker cp $(docker ps -alq):/work/snyk-report.json ./snyk-report.json || true'
                     archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                 }
             }
@@ -61,7 +70,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .
+                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG . 
                     docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest
                 """
             }
