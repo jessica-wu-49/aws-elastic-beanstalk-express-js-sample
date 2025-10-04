@@ -27,7 +27,7 @@ pipeline {
                     tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
-                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                        npm install --save
                     '
                 '''
             }
@@ -39,7 +39,7 @@ pipeline {
                     tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
-                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                        npm install --save
                         npm test
                     '
                 '''
@@ -53,7 +53,7 @@ pipeline {
                     tar -C . -cf - . | docker run --rm -i -w /work -e SNYK_TOKEN node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
-                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                        npm install --save
                         npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
                     '
                 '''
