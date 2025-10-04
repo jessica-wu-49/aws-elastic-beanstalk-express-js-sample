@@ -1,77 +1,89 @@
 pipeline {
-    agent {
-        docker {
-            image 'node:16'        // Use Node.js 16 Docker image as the build environment
-            args '-u root:root'    // Run container as root user
-        }
-    }
+
+    agent { label 'built-in' }
 
     environment {
         DOCKER_REGISTRY = 'jessicawu49'
         APP_NAME        = 'aws-sample'
-        IMAGE_TAG       = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}" // Build number + short commit hash
-        DOCKER_CREDENTIALS = 'dockerhub-id' // Jenkins credentials ID for Docker
+        IMAGE_TAG       = "${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'local'}"
     }
 
     stages {
+        stage('Debug Workspace') {
+            steps {
+                sh 'pwd && ls -la'
+            }
+        }
+
         stage('Checkout') {
             steps {
-                checkout scm    // Pull source code from repository
+                checkout scm
             }
         }
 
         stage('Install Dependencies') {
             steps {
-                echo "Installing dependencies with npm ci..."
-                sh 'npm ci'     // Install Node.js dependencies
+                sh '''
+                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
+                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                    '
+                '''
             }
         }
 
         stage('Run Unit Tests') {
             steps {
-                echo "Running unit tests..."
-                sh 'npm test'   // Run unit tests
+                sh '''
+                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
+                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                        npm test
+                    '
+                '''
             }
         }
 
-        stage('Security Scan') {
+        stage('Security Scan (Snyk)') {
+            environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
-                withCredentials([string(credentialsId: 'snyk-api-token', variable: 'SNYK_TOKEN')]) {
-                    sh '''
-                        npm install -g snyk            // Install Snyk CLI
-                        snyk auth $SNYK_TOKEN          // Authenticate Snyk
-                        snyk test --severity-threshold=high --json > snyk-report.json  // Run security scan
-                    '''
-                }
+                sh '''
+                    tar -C . -cf - . | docker run --rm -i -w /work -e SNYK_TOKEN node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
+                        if [ -f /work/package-lock.json ]; then npm ci; else npm install; fi
+                        npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
+                    '
+                '''
             }
             post {
                 always {
-                    archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true // Save Snyk report
+                    archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image..."
-                sh '''
-                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .   // Build image with tag
-                    docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest  // Tag as latest
-                '''
+                sh """
+                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .
+                    docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest
+                """
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                echo "Pushing Docker image to registry..."
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials-id',
                                                   usernameVariable: 'DOCKER_USER',
                                                   passwordVariable: 'DOCKER_PASS')]) {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin // Login to DockerHub
-                        docker push $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG                  // Push image with version tag
-                        docker push $DOCKER_REGISTRY/$APP_NAME:latest                      // Push latest tag
-                    '''
+                    sh """
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        docker push $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG
+                        docker push $DOCKER_REGISTRY/$APP_NAME:latest
+                    """
                 }
             }
         }
@@ -79,10 +91,10 @@ pipeline {
 
     post {
         failure {
-            echo '❌ Pipeline failed!'   // Notify failure
+            echo '❌ Pipeline failed!'
         }
         success {
-            echo '✅ Pipeline succeeded!' // Notify success
+            echo '✅ Pipeline succeeded!'
         }
     }
 }
