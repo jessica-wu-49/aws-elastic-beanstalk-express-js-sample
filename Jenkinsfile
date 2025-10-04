@@ -1,5 +1,4 @@
 pipeline {
-
     agent { label 'built-in' }
 
     environment {
@@ -24,9 +23,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
-                        mkdir -p /work
-                        tar -xf - -C /work
+                    docker run --rm -v $WORKSPACE:/work -w /work node:16 bash -lc '
                         npm install --save
                     '
                 '''
@@ -36,9 +33,7 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 sh '''
-                    tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
-                        mkdir -p /work
-                        tar -xf - -C /work
+                    docker run --rm -v $WORKSPACE:/work -w /work node:16 bash -lc '
                         npm install --save
                         npm test
                     '
@@ -50,7 +45,7 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
-                    docker run --rm -v $(pwd):/work -w /work -e SNYK_TOKEN node:16 bash -lc '
+                    docker run --rm -v $WORKSPACE:/work -w /work -e SNYK_TOKEN node:16 bash -lc '
                         npm install --save
                         npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
                     '
@@ -66,7 +61,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG . 
+                    docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .
                     docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest
                 """
             }
