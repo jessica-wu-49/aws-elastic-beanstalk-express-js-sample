@@ -65,7 +65,7 @@ pipeline {
             }
             post {
                 always {
-                    # Archive generated Snyk security report
+                    // Archive generated Snyk security report
                     archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                 }
             }
