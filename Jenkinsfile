@@ -9,6 +9,7 @@ pipeline {
     }
 
     stages {
+
         stage('Debug Workspace') {
             steps {
                 sh 'pwd && ls -la'
@@ -53,14 +54,26 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
+                    echo "🔍 Current workspace: $WORKSPACE"
+                    echo "📦 Checking if package.json exists..."
+                    ls -la $WORKSPACE
+
                     # Run Snyk vulnerability scan with JSON report output and persist to Jenkins workspace
-                    docker run --rm -i -w /work \
+                    docker run --rm -u 0 -i -w /work \
                       -v $WORKSPACE:/work \
                       -e SNYK_TOKEN node:16 bash -lc '
+                        if [ ! -f /work/package.json ]; then
+                          echo "❌ ERROR: package.json not found in /work!"
+                          ls -la /work
+                          exit 1
+                        fi
                         npm install --save
                         npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
                       '
-                    echo "Snyk Security Scan completed. Report saved as snyk-report.json"
+
+                    # Verify report generation
+                    ls -lh $WORKSPACE/snyk-report.json || echo "⚠️ snyk-report.json not found!"
+                    echo "✅ Snyk Security Scan completed. Report saved as snyk-report.json"
                 '''
             }
             post {
