@@ -57,7 +57,7 @@ pipeline {
                     echo "🔍 Starting Snyk Security Scan..."
                     echo "📦 Packaging source files and transferring into container..."
 
-                    # Copy all source files into container and run Snyk test
+                    # Run Snyk scan and capture JSON output directly to Jenkins workspace
                     tar -C . -cf - . | docker run --rm -u 0 -i -w /work -e SNYK_TOKEN node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
@@ -71,12 +71,9 @@ pipeline {
                         npm install --save
                         npm install -g snyk
                         snyk auth $SNYK_TOKEN
-                        snyk test --severity-threshold=high --json > snyk-report.json
-                        echo "✅ Snyk scan completed successfully."
-                    '
+                        snyk test --severity-threshold=high --json
+                    ' > snyk-report.json
 
-                    # Copy report file out of the container to Jenkins workspace
-                    docker cp $(docker ps -alq):/work/snyk-report.json ./snyk-report.json || true
                     echo "✅ Snyk Security Scan completed. Report saved as snyk-report.json"
                 '''
             }
