@@ -54,25 +54,29 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
-                    echo "🔍 Current workspace: $WORKSPACE"
-                    echo "📦 Checking if package.json exists..."
-                    ls -la $WORKSPACE
+                    echo "🔍 Starting Snyk Security Scan..."
+                    echo "📦 Packaging source files and transferring into container..."
 
-                    # Run Snyk vulnerability scan with JSON report output and persist to Jenkins workspace
-                    docker run --rm -u 0 -i -w /work \
-                      -v $WORKSPACE:/work \
-                      -e SNYK_TOKEN node:16 bash -lc '
+                    # Copy all source files into container and run Snyk test
+                    tar -C . -cf - . | docker run --rm -u 0 -i -w /work -e SNYK_TOKEN node:16 bash -lc '
+                        mkdir -p /work
+                        tar -xf - -C /work
+
                         if [ ! -f /work/package.json ]; then
-                          echo "❌ ERROR: package.json not found in /work!"
-                          ls -la /work
-                          exit 1
+                            echo "❌ ERROR: package.json not found in /work!"
+                            ls -la /work
+                            exit 1
                         fi
-                        npm install --save
-                        npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
-                      '
 
-                    # Verify report generation
-                    ls -lh $WORKSPACE/snyk-report.json || echo "⚠️ snyk-report.json not found!"
+                        npm install --save
+                        npm install -g snyk
+                        snyk auth $SNYK_TOKEN
+                        snyk test --severity-threshold=high --json > snyk-report.json
+                        echo "✅ Snyk scan completed successfully."
+                    '
+
+                    # Copy report file out of the container to Jenkins workspace
+                    docker cp $(docker ps -alq):/work/snyk-report.json ./snyk-report.json || true
                     echo "✅ Snyk Security Scan completed. Report saved as snyk-report.json"
                 '''
             }
