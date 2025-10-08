@@ -24,7 +24,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 sh '''
-                    // Safely copy source code into container via tar pipe and install dependencies
+                    # Safely copy source code into container via tar pipe and install dependencies
                     tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
@@ -37,7 +37,7 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 sh '''
-                    // Run unit tests in isolated Node.js environment
+                    # Run unit tests in isolated Node.js environment
                     tar -C . -cf - . | docker run --rm -i -w /work node:16 bash -lc '
                         mkdir -p /work
                         tar -xf - -C /work
@@ -53,7 +53,7 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
-                    // Run Snyk vulnerability scan with JSON report output and persist to Jenkins workspace
+                    # Run Snyk vulnerability scan with JSON report output and persist to Jenkins workspace
                     docker run --rm -i -w /work \
                       -v $WORKSPACE:/work \
                       -e SNYK_TOKEN node:16 bash -lc '
@@ -65,7 +65,7 @@ pipeline {
             }
             post {
                 always {
-                    // Archive generated Snyk security report
+                    # Archive generated Snyk security report
                     archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                 }
             }
@@ -74,7 +74,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                    // Build Docker image using Jenkins build info
+                    # Build Docker image using Jenkins build info
                     docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .
                     docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest
                 """
@@ -87,7 +87,7 @@ pipeline {
                                                   usernameVariable: 'DOCKER_USER',
                                                   passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                        // Login and push images to Docker Hub
+                        # Login and push images to Docker Hub
                         echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                         docker push $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG
                         docker push $DOCKER_REGISTRY/$APP_NAME:latest
