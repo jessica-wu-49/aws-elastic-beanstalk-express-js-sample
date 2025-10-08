@@ -34,7 +34,7 @@ pipeline {
         stage('Run Unit Tests') {
             steps {
                 sh '''
-                    # Run project unit tests in isolated Node.js container
+                    // Run project unit tests in isolated Node.js container
                     docker run --rm -i -w /work -v $(pwd):/work node:16 bash -lc '
                         npm install --save
                         npm test
@@ -48,7 +48,7 @@ pipeline {
             environment { SNYK_TOKEN = credentials('snyk-api-token') }
             steps {
                 sh '''
-                    # Run Snyk security scan, mounting Jenkins workspace for report persistence
+                    // Run Snyk security scan, mounting Jenkins workspace for report persistence
                     docker run --rm -i -w /work -v $(pwd):/work -e SNYK_TOKEN node:16 bash -lc '
                         npm install --save
                         npx --yes snyk@latest test --severity-threshold=high --json > snyk-report.json
@@ -58,7 +58,7 @@ pipeline {
             }
             post {
                 always {
-                    # Archive generated Snyk security report
+                    // Archive generated Snyk security report
                     archiveArtifacts artifacts: 'snyk-report.json', allowEmptyArchive: true
                 }
             }
@@ -67,7 +67,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh """
-                    # Build and tag Docker image using Jenkins build info
+                    // Build and tag Docker image using Jenkins build info
                     docker build -t $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG .
                     docker tag $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG $DOCKER_REGISTRY/$APP_NAME:latest
                 """
@@ -80,7 +80,7 @@ pipeline {
                                                   usernameVariable: 'DOCKER_USER',
                                                   passwordVariable: 'DOCKER_PASS')]) {
                     sh """
-                        # Authenticate to Docker Hub and push both versioned and latest images
+                        // Authenticate to Docker Hub and push both versioned and latest images
                         echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                         docker push $DOCKER_REGISTRY/$APP_NAME:$IMAGE_TAG
                         docker push $DOCKER_REGISTRY/$APP_NAME:latest
